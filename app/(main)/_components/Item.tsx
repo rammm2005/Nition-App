@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, LucideIcon, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, LucideIcon, MoreHorizontal, Plus, Trash } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,13 @@ import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {useUser} from '@clerk/clerk-react';
+import {
+    DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import { archive } from "@/convex/documents";
 
 interface ItemProps {
     id?: Id<"documents">;
@@ -37,36 +44,53 @@ export const Item = ({
 }: ItemProps) => {
 
     const router = useRouter();
+    const {user} = useUser();
     const handleExpend = (
-        event:React.MouseEvent<HTMLDivElement , MouseEvent>
+        event: React.MouseEvent<HTMLDivElement, MouseEvent>
     ) => {
         event.stopPropagation();
         onExpand?.();
     }
 
     const create = useMutation(api.documents.create);
+    const archive = useMutation(api.documents.archive);
 
-    const onCreate =  (
-        event:React.MouseEvent<HTMLDivElement , MouseEvent>
+    const onArchive = (
+        event: React.MouseEvent<HTMLDivElement, MouseEvent>
+      ) => {
+        event.stopPropagation();
+        if (!id) return;
+        const promise = archive({ id })
+          .then(() => router.push("/documents"))
+    
+        toast.promise(promise, {
+          loading: "Moving to trash...",
+          success: "Note moved to trash!",
+          error: "Failed to archive note."
+        });
+      };
+
+    const onCreate = (
+        event: React.MouseEvent<HTMLDivElement, MouseEvent>
     ) => {
         event.stopPropagation();
-        if(!id) return;
+        if (!id) return;
 
         const promise = create({
-            title:"Untitled", parentDocument:id
+            title: "Untitled", parentDocument: id
         })
 
-        .then((documentId) => {
-            if(!expanded){
-                onExpand?.();
-            }
-            // router.push(`/documents/${documentId}`);
-        })
+            .then((documentId) => {
+                if (!expanded) {
+                    onExpand?.();
+                }
+                // router.push(`/documents/${documentId}`);
+            })
 
         toast.promise(promise, {
-            loading:"Creating a new Note...",
-            success:"New note Success creating!",
-            error:"Failed to create a new Note."
+            loading: "Creating a new Note...",
+            success: "New note Success creating!",
+            error: "Failed to create a new Note."
         });
     }
     const ChevronIcon = expanded ? ChevronDown : ChevronRight;
@@ -85,24 +109,24 @@ export const Item = ({
             >
                 {!!id && (
                     <div
-                    role="button"
-                    className="h-full rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600 mr-1"
-                    onClick={handleExpend}
+                        role="button"
+                        className="h-full rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600 mr-1"
+                        onClick={handleExpend}
                     >
-                    <ChevronIcon
-                        className="h-4 w-4 shrink-0 text-muted-foreground/50"
-                    />
+                        <ChevronIcon
+                            className="h-4 w-4 shrink-0 text-muted-foreground/50"
+                        />
                     </div>
                 )}
 
                 {documentIcon ? (
-                        <div className="shrink-0 mr-2 text-[18px]">
+                    <div className="shrink-0 mr-2 text-[18px]">
                         {documentIcon}
-                        </div>
-                    ) : (
-                        <Icon 
+                    </div>
+                ) : (
+                    <Icon
                         className="shrink-0 h-[18px] w-[18px] mr-2 text-muted-foreground"
-                        />
+                    />
                 )}
 
                 <span className="truncate">
@@ -112,18 +136,46 @@ export const Item = ({
 
                 {isSearch && (
                     <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
-                     <span className="text-xs">⌘</span>K
-                   </kbd>
+                        <span className="text-xs">⌘</span>K
+                    </kbd>
                 )}
 
 
                 {!!id && (
                     <div
-                    role="button"
-                    onClick={onCreate}
-                    className="ml-auto flex items-center gap-x-2">
+                        role="button"
+                        onClick={onCreate}
+                        className="ml-auto flex items-center gap-x-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger
+                                onClick={(e) => e.stopPropagation()}
+                                asChild
+                            >
+                                <div
+                                    role="button"
+                                    className="opacity-0 group-hover:opacity-100 h-full ml-auto rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                                >
+                                    <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                className="w-60"
+                                align="start"
+                                side="right"
+                                forceMount
+                            >
+                                <DropdownMenuItem onClick={onArchive}>
+                                    <Trash className="h-4 w-4 mr-2" />
+                                    Delete
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <div className="text-xs text-muted-foreground p-2">
+                                    Last edited by: {user?.fullName}
+                                </div>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                         <div className="opacity-0 group-hover:opacity-100 h-full ml-auto rounded-sm hover:bg-neutral-300 dark:hover:bg-neutral-600">
-                            <Plus className="h-4 w-4 text-muted-foreground"/>
+                            <Plus className="h-4 w-4 text-muted-foreground" />
                         </div>
                     </div>
                 )
@@ -131,18 +183,19 @@ export const Item = ({
             </div>
         </>
     )
-} 
+}
 
 
-Item.Skeleton = function ItemSkeleton({level} : {level? : number}) {
-    return(
+Item.Skeleton = function ItemSkeleton({ level }: { level?: number }) {
+    return (
         <>
             <div
-            className="flex gap-x-2 py-[3px]"
-            style={{paddingLeft: level ? `${(level * 12) + 25}px` : "12px"
-            }}>
-                <Skeleton className="h-4 w-4"/>
-                <Skeleton className="h-4 w-[30%]"/>
+                className="flex gap-x-2 py-[3px]"
+                style={{
+                    paddingLeft: level ? `${(level * 12) + 25}px` : "12px"
+                }}>
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-4 w-[30%]" />
             </div>
         </>
     )
